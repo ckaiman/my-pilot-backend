@@ -1,0 +1,35 @@
+steps:
+  # 1. Build the container image
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', '$_GCR_HOSTNAME/$PROJECT_ID/$_SERVICE_NAME:$BUILD_ID', '.']
+
+  # 2. Push the container image to Artifact Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', '$_GCR_HOSTNAME/$PROJECT_ID/$_SERVICE_NAME:$BUILD_ID']
+
+  # 3. Deploy container image to Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - '$_SERVICE_NAME'
+      - '--image'
+      - '$_GCR_HOSTNAME/$PROJECT_ID/$_SERVICE_NAME:$BUILD_ID'
+      - '--region'
+      - '$_DEPLOY_REGION'
+      - '--platform'
+      - 'managed'
+      - '--allow-unauthenticated'
+
+# Define substitution variables for easy overrides
+substitutions:
+  _SERVICE_NAME: my-pilot-backend
+  _DEPLOY_REGION: us-central1
+  _GCR_HOSTNAME: gcr.io
+
+images:
+  - '$_GCR_HOSTNAME/$PROJECT_ID/$_SERVICE_NAME:$BUILD_ID'
+
+options:
+  logging: CLOUD_LOGGING_ONLY
