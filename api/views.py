@@ -3,11 +3,19 @@ from rest_framework.response import Response
 from .models import Mission
 from .serializers import MissionSerializer
 
-@api_view(['GET'])
+@api_view(['GET', 'POST'])
 def mission_list(request):
-    missions = Mission.objects.all()
-    serializer = MissionSerializer(missions, many=True)
-    return Response(serializer.data)
+    if request.method == 'GET':
+        missions = Mission.objects.all()
+        serializer = MissionSerializer(missions, many=True)
+        return Response(serializer.data)
+    
+    elif request.method == 'POST':
+        serializer = MissionSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=201)
+        return Response(serializer.errors, status=400)
 
 @api_view(['POST'])
 def process_log(request):
