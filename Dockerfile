@@ -19,5 +19,5 @@ COPY . /app/
 # Expose port 8080 (Cloud Run default)
 EXPOSE 8080
 
-# Start the application using Gunicorn
-CMD exec gunicorn --bind :$PORT --workers 1 --threads 8 --timeout 0 pilot_backend.wsgi:application
+# Start the application using Gunicorn, but run migrations first
+CMD python manage.py migrate && exec gunicorn --bind :$PORT --workers 1 --threads 8 --timeout 0 pilot_backend.wsgi:application
