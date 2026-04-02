@@ -1,18 +1,29 @@
 import os
 from pathlib import Path
-from dotenv import load_dotenv
+import environ
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
-load_dotenv(BASE_DIR / '.env')
+
+env = environ.Env(
+    # set casting, default value
+    DEBUG=(bool, False)
+)
+environ.Env.read_env(os.path.join(BASE_DIR, '.env'))
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'django-insecure-pilot-key')
+SECRET_KEY = env('DJANGO_SECRET_KEY', default='django-insecure-pilot-key')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.environ.get('DJANGO_DEBUG', 'True') == 'True'
+# Default to False for safety. Set DEBUG=True in your .env file for local development.
+DEBUG = env('DEBUG')
 
-ALLOWED_HOSTS = ['*']
+# For production, set this to your Cloud Run service URL.
+# For local dev, you can use 'localhost,127.0.0.1'.
+ALLOWED_HOSTS = env.list('ALLOWED_HOSTS', default=['localhost', '127.0.0.1'])
+RENDER_INTERNAL_HOSTNAME = env('RENDER_INTERNAL_HOSTNAME', default=None)
+if RENDER_INTERNAL_HOSTNAME:
+    ALLOWED_HOSTS.append(RENDER_INTERNAL_HOSTNAME)
 
 # Application definition
 INSTALLED_APPS = [
@@ -38,7 +49,11 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
-CORS_ALLOW_ALL_ORIGINS = True  # In production, restrict this to your Vue app's URL
+# For production, restrict this to your frontend's domain.
+# For local dev, set in .env: CORS_ALLOWED_ORIGINS=http://localhost:8080
+CORS_ALLOWED_ORIGINS = env.list('CORS_ALLOWED_ORIGINS', default=[])
+# Allow all origins only if DEBUG is on and the list is empty
+CORS_ALLOW_ALL_ORIGINS = not CORS_ALLOWED_ORIGINS and DEBUG
 
 ROOT_URLCONF = 'pilot_backend.urls'
 
@@ -68,10 +83,13 @@ DATABASES = {
     }
 }
 
-# Production database using DATABASE_URL (Cloud SQL)
-import dj_database_url
-if os.environ.get('DATABASE_URL'):
-    DATABASES['default'] = dj_database_url.config(conn_max_age=600)
+# Use Cloud SQL if DATABASE_URL is set.
+# This will raise an error if DATABASE_URL is not set in a non-DEBUG environment,
+# preventing accidental use of SQLite in production. It will use SQLite if DEBUG is True and no URL is set.
+DATABASES['default'] = env.db('DATABASE_URL', default=f"sqlite:///{BASE_DIR / 'db.sqlite3'}")
+
+if DATABASES['default']['ENGINE'] != 'django.db.backends.sqlite3':
+    DATABASES['default']['CONN_MAX_AGE'] = 600
 
 # Password validation
 AUTH_PASSWORD_VALIDATORS = [

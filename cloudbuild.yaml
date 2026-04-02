@@ -7,8 +7,17 @@ steps:
   - name: 'gcr.io/cloud-builders/docker'
     args: ['push', '$_GCR_HOSTNAME/$PROJECT_ID/$_SERVICE_NAME:$BUILD_ID']
 
-  # 3. Run migrations (Optional: only if using a persistent DB like Cloud SQL)
-  # For now, let's add it to the deploy command or as a separate step if we have a DB connection
+  # 3. Run Django migrations on the new image before deploying
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: 'gcloud'
+    args:
+      - 'run'
+      - 'jobs'
+      - 'execute'
+      - '${_SERVICE_NAME}-migrate' # A Cloud Run Job for migrations
+      - '--region'
+      - '${_DEPLOY_REGION}'
+      - '--wait'
   
   # 4. Deploy container image to Cloud Run
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
@@ -24,12 +33,28 @@ steps:
       - '--platform'
       - 'managed'
       - '--allow-unauthenticated'
+      # Connect Cloud Run to the Cloud SQL instance
+      - '--add-cloudsql-instances'
+      - '${_DB_INSTANCE_CONNECTION_NAME}'
+      # Set environment variables for the service
+      - '--set-env-vars=DEBUG=False'
+      - '--set-env-vars=ALLOWED_HOSTS=${_ALLOWED_HOSTS}'
+      - '--set-env-vars=CORS_ALLOWED_ORIGINS=${_CORS_ALLOWED_ORIGINS}'
+      # Set secrets from Secret Manager
+      - '--set-secrets=DJANGO_SECRET_KEY=${_SECRET_NAME}:latest'
+      - '--set-secrets=DATABASE_URL=${_DB_URL_SECRET_NAME}:latest'
 
 # Define substitution variables for easy overrides
 substitutions:
   _SERVICE_NAME: my-pilot-backend
   _DEPLOY_REGION: us-central1
   _GCR_HOSTNAME: gcr.io
+  # Add new substitutions for your specific environment
+  _DB_INSTANCE_CONNECTION_NAME: 'ck49621:us-east4:my-pilot-postgres'
+  _ALLOWED_HOSTS: '' # Will be set to the service URL after first deploy
+  _CORS_ALLOWED_ORIGINS: 'https://your-frontend-domain.com'
+  _SECRET_NAME: 'DJANGO_SECRET_KEY'
+  _DB_URL_SECRET_NAME: 'DATABASE_URL'
 
 images:
   - '$_GCR_HOSTNAME/$PROJECT_ID/$_SERVICE_NAME:$BUILD_ID'
